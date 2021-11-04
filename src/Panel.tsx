@@ -20,17 +20,11 @@ export const Panel: React.FC<PanelProps> = (props) => {
     [EVENTS.RESULT]: (newResults) => setState(newResults),
   });
 
+  console.log("EMIT", emit);
+
   return (
     <AddonPanel {...props}>
-      <PanelContent
-        results={results}
-        fetchData={() => {
-          emit(EVENTS.REQUEST);
-        }}
-        clearData={() => {
-          emit(EVENTS.CLEAR);
-        }}
-      />
+      <PanelContent />
     </AddonPanel>
   );
 };

@@ -1,76 +1,86 @@
-import React, { Fragment } from "react";
-import { styled, themes, convert } from "@storybook/theming";
-import { TabsState, Placeholder, Button } from "@storybook/components";
-import { List } from "./List";
+import React, { MouseEvent, useEffect, useState } from "react";
+import { ActionBar, ScrollArea } from "@storybook/components";
+import { useChannel } from "@storybook/api";
+import { EVENT_CODE_RECEIVED } from "../constants";
+import { format as prettierFormat } from "prettier/standalone";
+import prettierHtml from "prettier/parser-html";
+import ReactSyntaxHighlighter from "react-syntax-highlighter";
+import posthtml from "posthtml";
+import posthtmlPlugin from "../posthtmlPlugin";
 
-export const RequestDataButton = styled(Button)({
-  marginTop: "1rem",
-});
+const doClickStuff = (processedHTML: string) => {
+  const tmp = document.createElement("textarea");
+  const focus = document.activeElement as HTMLElement;
 
-type Results = {
-  danger: any[];
-  warning: any[];
+  tmp.value = processedHTML;
+
+  document.body.appendChild(tmp);
+  tmp.select();
+  document.execCommand("copy");
+  document.body.removeChild(tmp);
+  focus.focus();
 };
 
-interface PanelContentProps {
-  results: Results;
-  fetchData: () => void;
-  clearData: () => void;
-}
+export const PanelContent: React.FC<{}> = () => {
+  const [html, setHTML] = useState("");
+  const [processedHTML, setProcessedHTML] = useState("");
+  const [copied, setCopied] = useState(false);
 
-/**
- * Checkout https://github.com/storybookjs/storybook/blob/next/addons/jest/src/components/Panel.tsx
- * for a real world example
- */
-export const PanelContent: React.FC<PanelContentProps> = ({
-  results,
-  fetchData,
-  clearData,
-}) => (
-  <TabsState
-    initial="overview"
-    backgroundColor={convert(themes.normal).background.hoverable}
-  >
-    <div
-      id="overview"
-      title="Overview"
-      color={convert(themes.normal).color.positive}
-    >
-      <Placeholder>
-        <Fragment>
-          Addons can gather details about how a story is rendered. This is panel
-          uses a tab pattern. Click the button below to fetch data for the other
-          two tabs.
-        </Fragment>
-        <Fragment>
-          <RequestDataButton
-            secondary
-            small
-            onClick={fetchData}
-            style={{ marginRight: 16 }}
-          >
-            Request data
-          </RequestDataButton>
+  useChannel({
+    [EVENT_CODE_RECEIVED]: (data) => {
+      setHTML(data.html);
+    },
+  });
 
-          <RequestDataButton outline small onClick={clearData}>
-            Clear data
-          </RequestDataButton>
-        </Fragment>
-      </Placeholder>
-    </div>
-    <div
-      id="danger"
-      title={`${results.danger.length} Danger`}
-      color={convert(themes.normal).color.negative}
-    >
-      <List items={results.danger} />
-    </div>
-    <div
-      id="warning"
-      title={`${results.warning.length} Warning`}
-      color={convert(themes.normal).color.warning}
-    >
-      <List items={results.warning} />
-    </div>
-  </TabsState>
-);
+  useEffect(() => {
+    const processHTML = async () => {
+      const result = await posthtml([
+        posthtmlPlugin({
+          stringAttrs: [],
+          safeAttrs: ["size", "class"],
+        }),
+      ]).process(html);
+
+      if (typeof result.html === "string") {
+        setProcessedHTML(result.html);
+      }
+    };
+
+    setHTML(
+      prettierFormat(html, {
+        htmlWhitespaceSensitivity: "ignore",
+        parser: "html",
+        plugins: [prettierHtml],
+      })
+    );
+    processHTML();
+  }, [html, processedHTML]);
+
+  const onClick = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    doClickStuff(processedHTML);
+
+    if (copied) {
+      window.setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  return (
+    <>
+      <ScrollArea vertical>
+        <ReactSyntaxHighlighter
+          language={"jsx"}
+          useInlineStyles={true}
+          wrapLines={true}
+          lineProps={{ className: "code-line" }}
+        >
+          {processedHTML}
+        </ReactSyntaxHighlighter>
+      </ScrollArea>
+
+      <ActionBar
+        actionItems={[{ title: copied ? "Copied" : "Copy", onClick }]}
+      />
+    </>
+  );
+};

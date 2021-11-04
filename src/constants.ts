@@ -9,3 +9,5 @@ export const EVENTS = {
   REQUEST: `${ADDON_ID}/request`,
   CLEAR: `${ADDON_ID}/clear`,
 };
+
+export const EVENT_CODE_RECEIVED = "html/htmlReceived";
